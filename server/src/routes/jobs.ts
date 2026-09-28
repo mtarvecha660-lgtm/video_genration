@@ -35,5 +35,11 @@ export function createJobsRouter(jobManager: JobManager): Router {
     });
   });
 
+  router.post('/:id/cancel', async (req, res) => {
+    const job = await jobManager.cancel(req.params.id);
+    if (!job) return res.status(404).json({ error: 'Job not found' });
+    res.json(job);
+  });
+
   return router;
 }

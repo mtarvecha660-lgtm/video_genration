@@ -51,6 +51,15 @@ export class JobManager {
     return this.repository.getJob(jobId);
   }
 
+  async cancel(jobId: string): Promise<GenerationJob | undefined> {
+    return this.update(jobId, {
+      status: 'cancelled',
+      stage: 'Cancelled',
+      message: 'Job cancelled by user',
+      log: 'Job cancelled'
+    });
+  }
+
   subscribe(jobId: string, listener: (job: GenerationJob) => void): () => void {
     this.emitter.on(jobId, listener);
     return () => this.emitter.off(jobId, listener);

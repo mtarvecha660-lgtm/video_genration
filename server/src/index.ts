@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import rateLimit from 'express-rate-limit';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import { config } from './config.js';
@@ -17,6 +18,13 @@ const jobs = new JobManager(repository);
 
 app.use(cors());
 app.use(express.json({ limit: '1mb' }));
+const downloadRateLimit = rateLimit({
+  windowMs: 60_000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many download requests. Try again in a minute.' }
+});
 
 app.get('/api/health', async (_req, res) => {
   const services = await getSystemChecks();
@@ -63,8 +71,9 @@ app.post('/api/projects/:id/rerender', async (req, res) => {
   res.status(202).json({ jobId: job.id, projectId: project.id });
 });
 
-app.get('/api/projects/:id/download', async (req, res) => {
-  const project = await repository.getProject(req.params.id);
+app.get('/api/projects/:id/download', downloadRateLimit, async (req, res) => {
+  const projectId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const project = await repository.getProject(projectId);
   if (!project?.outputVideo) return res.status(404).json({ error: 'Video not found' });
   if (!project.outputVideo.startsWith(config.outputDir)) {
     return res.status(400).json({ error: 'Invalid output path' });
@@ -72,8 +81,9 @@ app.get('/api/projects/:id/download', async (req, res) => {
   res.download(project.outputVideo, path.basename(project.outputVideo));
 });
 
-app.get('/api/projects/:id/package', async (req, res) => {
-  const project = await repository.getProject(req.params.id);
+app.get('/api/projects/:id/package', downloadRateLimit, async (req, res) => {
+  const projectId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const project = await repository.getProject(projectId);
   if (!project) return res.status(404).json({ error: 'Project not found' });
   const packagePath = project.outputJson ?? path.join(config.outputDir, project.id, 'project-package.json');
   if (!packagePath.startsWith(config.outputDir)) return res.status(400).json({ error: 'Invalid package path' });
